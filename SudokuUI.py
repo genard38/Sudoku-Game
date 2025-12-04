@@ -81,18 +81,22 @@ class MainPage(tk.Frame):
         tk.Button(button_frame, text="Undo", command=self.undo).pack(side="left", padx=5)
         tk.Button(button_frame, text="Redo", command=self.redo).pack(side="left", padx=5)
 
+    def get_holes_for_difficulty(self, difficulty):
+        """Returns the number of cells to remove for the given difficulty."""
+        if difficulty == "Easy":
+            return 30
+        elif difficulty == "Medium":
+            return 40
+        elif difficulty == "Hard":
+            return 56
+        return 30 # Default to Easy
+
     def generate_puzzle(self, difficulty):
         board = SudokuGrid()
         solver = SudokuSolver(board)
         solver.solve() # Creates a full, valid grid
 
-        # Remove cells based on difficulty
-        if difficulty == "Easy":
-            empty_cells = 40
-        elif difficulty == "Medium":
-            empty_cells = 50
-        else: # Hard
-            empty_cells = 60
+        empty_cells = self.get_holes_for_difficulty(difficulty)
         
         for _ in range(empty_cells):
             row, col = random.randint(0, 8), random.randint(0, 8)
