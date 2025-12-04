@@ -20,12 +20,20 @@ class SudokuApp(tk.Tk):
         self.show_intro_page()
 
     def show_frame(self, context, *args, **kwargs):
-        frame = self.frames.get(context)
-        if not frame:
+        # Always create a new frame for MainPage to ensure correct difficulty
+        if context == MainPage:
+            frame = self.frames.get(context)
+            if frame:
+                frame.destroy()
             frame = context(self.container, self, *args, **kwargs)
             self.frames[context] = frame
             frame.grid(row=0, column=0, sticky="nsew")
-        frame.tkraise()
+        elif context not in self.frames:
+            frame = context(self.container, self, *args, **kwargs)
+            self.frames[context] = frame
+            frame.grid(row=0, column=0, sticky="nsew")
+        
+        self.frames[context].tkraise()
 
     def show_intro_page(self):
         self.show_frame(IntroPage)
@@ -84,25 +92,26 @@ class MainPage(tk.Frame):
     def get_holes_for_difficulty(self, difficulty):
         """Returns the number of cells to remove for the given difficulty."""
         if difficulty == "Easy":
-            return 30
-        elif difficulty == "Medium":
             return 40
+        elif difficulty == "Medium":
+            return 51
         elif difficulty == "Hard":
             return 56
-        return 30 # Default to Easy
+        return 40 # Default to Easy
 
     def generate_puzzle(self, difficulty):
         board = SudokuGrid()
         solver = SudokuSolver(board)
         solver.solve() # Creates a full, valid grid
 
-        empty_cells = self.get_holes_for_difficulty(difficulty)
+        empty_cells_count = self.get_holes_for_difficulty(difficulty)
         
-        for _ in range(empty_cells):
-            row, col = random.randint(0, 8), random.randint(0, 8)
-            while board.grid[row][col] == 0:
-                row, col = random.randint(0, 8), random.randint(0, 8)
-            board.grid[row][col] = 0
+        all_cells = [(r, c) for r in range(9) for c in range(9)]
+        random.shuffle(all_cells)
+
+        for i in range(empty_cells_count):
+            r, c = all_cells[i]
+            board.grid[r][c] = 0
             
         self._update_grid_ui(board.grid)
         self.record_state()
