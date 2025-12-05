@@ -65,10 +65,24 @@ class MainPage(tk.Frame):
         self.undo_stack = []
         self.redo_stack = []
 
+        self._create_header()
         validation_command = (self.register(self.validate_input), '%P')
         self._create_grid(validation_command)
         self._create_buttons()
         self.generate_puzzle(difficulty)
+
+    def _create_header(self):
+        header = tk.Frame(self)
+        header.pack(fill="x", padx=10, pady=5)
+        
+        # This empty label will push the settings button to the right
+        tk.Label(header, text="").pack(side="left", expand=True)
+
+        settings_button = tk.Button(header, text="Settings", command=self.open_settings)
+        settings_button.pack(side="right")
+
+    def open_settings(self):
+        messagebox.showinfo("Settings", "Settings functionality is not yet implemented.")
 
     def validate_input(self, p):
         if p == "" or (len(p) == 1 and p.isdigit() and p != '0'):
