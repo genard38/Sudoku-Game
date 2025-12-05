@@ -44,12 +44,18 @@ class SudokuApp(tk.Tk):
 class IntroPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
-        label = tk.Label(self, text="Select Difficulty", font=("Arial", 24))
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        main_frame = tk.Frame(self)
+        main_frame.grid(row=0, column=0)
+
+        label = tk.Label(main_frame, text="Select Difficulty", font=("Arial", 24))
         label.pack(pady=20, padx=10)
 
-        tk.Button(self, text="Easy", font=("Arial", 18), command=lambda: controller.start_game("Easy")).pack(pady=10)
-        tk.Button(self, text="Medium", font=("Arial", 18), command=lambda: controller.start_game("Medium")).pack(pady=10)
-        tk.Button(self, text="Hard", font=("Arial", 18), command=lambda: controller.start_game("Hard")).pack(pady=10)
+        tk.Button(main_frame, text="Easy", font=("Arial", 18), command=lambda: controller.start_game("Easy")).pack(pady=10)
+        tk.Button(main_frame, text="Medium", font=("Arial", 18), command=lambda: controller.start_game("Medium")).pack(pady=10)
+        tk.Button(main_frame, text="Hard", font=("Arial", 18), command=lambda: controller.start_game("Hard")).pack(pady=10)
 
 class MainPage(tk.Frame):
     def __init__(self, parent, controller, difficulty):
@@ -59,24 +65,24 @@ class MainPage(tk.Frame):
         self.undo_stack = []
         self.redo_stack = []
 
-        vcmd = (self.register(self.validate_input), '%P')
-        self._create_grid(vcmd)
+        validation_command = (self.register(self.validate_input), '%P')
+        self._create_grid(validation_command)
         self._create_buttons()
         self.generate_puzzle(difficulty)
 
-    def validate_input(self, P):
-        if P == "" or (len(P) == 1 and P.isdigit() and P != '0'):
+    def validate_input(self, p):
+        if p == "" or (len(p) == 1 and p.isdigit() and p != '0'):
             self.after_idle(self.record_state)
             return True
         return False
 
-    def _create_grid(self, vcmd):
+    def _create_grid(self, validation_command):
         grid_frame = tk.Frame(self)
         grid_frame.pack(pady=10)
         for i in range(9):
             for j in range(9):
                 cell = tk.Entry(grid_frame, width=3, font=('Arial', 18), justify='center', bd=1, relief='solid',
-                              validate="key", validatecommand=vcmd)
+                              validate="key", validatecommand=validation_command)
                 cell.grid(row=i, column=j, padx=(5,0) if j%3==0 else (1,0), pady=(5,0) if i%3==0 else (1,0), ipady=5)
                 self.cells[(i, j)] = cell
 
@@ -92,7 +98,7 @@ class MainPage(tk.Frame):
     def get_holes_for_difficulty(self, difficulty):
         """Returns the number of cells to remove for the given difficulty."""
         if difficulty == "Easy":
-            return 40
+            return 35
         elif difficulty == "Medium":
             return 51
         elif difficulty == "Hard":
