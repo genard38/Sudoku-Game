@@ -70,7 +70,8 @@ class MainPage(tk.Frame):
             "highlight": "#e0e0e0",  # A light gray
             "readonly": "#f5f5f5",   # A slightly different gray for given numbers
             "number_highlight": "#cce5ff", # A light blue for matching numbers
-            "focus_highlight": "#a6d7ff" # A brighter blue for the focused cell
+            "focus_highlight": "#a6d7ff", # A brighter blue for the focused cell
+            "error": "#ffcccc" # A light red for invalid numbers
         }
 
         # Load the settings icon image before any methods that might use it.
@@ -123,7 +124,7 @@ class MainPage(tk.Frame):
                 # Bind events to the cell
                 cell.bind("<FocusIn>", lambda event, r=i, c=j: self._on_cell_focus(r, c))
                 # Chain two commands to the KeyRelease event
-                cell.bind("<KeyRelease>", lambda event, r=i, c=j: (self._on_cell_focus(r, c), self.record_state()))
+                cell.bind("<KeyRelease>", lambda event, r=i, c=j: self._on_key_release(r, c))
 
                 cell.grid(row=i, column=j, padx=(5,0) if j%3==0 else (1,0), pady=(5,0) if i%3==0 else (1,0), ipady=5)
                 self.cells[(i, j)] = cell
@@ -145,7 +146,11 @@ class MainPage(tk.Frame):
 
     def _on_cell_focus(self, focused_row, focused_col):
         """Highlights the row, column, and matching numbers for the focused cell."""
-        self._clear_highlighting()
+        # First, validate the grid to establish a baseline of error highlights
+        error_cells = self._validate_and_highlight_errors()
+
+        # Then, clear any non-error highlights before applying new ones
+        self._clear_highlighting(exclude_errors=True)
 
         focused_cell = self.cells[(focused_row, focused_col)]
         number_to_match = self._get_cell_value(focused_cell)
@@ -160,11 +165,19 @@ class MainPage(tk.Frame):
         if number_to_match and number_to_match.isdigit():
             # Then, apply the number highlight, which will override the row/col highlight where necessary
             for (r, c), cell_widget in self.cells.items():
+                # Don't re-color error cells with a number highlight
+                if (r, c) in error_cells:
+                    continue
                 if self._get_cell_value(cell_widget) == number_to_match:
                     self._set_cell_bg(cell_widget, self.colors["number_highlight"])
 
         # Finally, the focused cell gets the most prominent highlight, overriding any other color
         self._set_cell_bg(self.cells[(focused_row, focused_col)], self.colors["focus_highlight"])
+
+    def _on_key_release(self, r, c):
+        """Handles actions after a key is released in a cell."""
+        self._on_cell_focus(r, c)
+        self.record_state()
 
     def _create_buttons(self):
         button_frame = tk.Frame(self)
@@ -266,9 +279,11 @@ class MainPage(tk.Frame):
                 cell.insert(0, value)
             if is_readonly: cell.config(state='readonly')
 
-    def _clear_highlighting(self):
+    def _clear_highlighting(self, exclude_errors=False):
         """Resets the background color of all cells to their default (normal or readonly) state."""
         for pos, cell_widget in self.cells.items():
+            if exclude_errors and cell_widget.cget('bg') == self.colors["error"]:
+                continue
             default_color = self.colors["readonly"] if cell_widget.cget('state') == 'readonly' else self.colors["default"]
             self._set_cell_bg(cell_widget, default_color)
 
@@ -277,7 +292,40 @@ class MainPage(tk.Frame):
             # Only clear user-editable cells, not the read-only puzzle numbers
             if cell.cget('state') != 'readonly':
                 cell.delete(0, tk.END)
+        self._validate_and_highlight_errors()
         self.record_state()
+
+    def _validate_and_highlight_errors(self):
+        """Checks the entire grid for Sudoku rule violations and highlights them in red."""
+        board = [[0] * 9 for _ in range(9)]
+        for (r, c), cell in self.cells.items():
+            val = self._get_cell_value(cell)
+            if val.isdigit():
+                board[r][c] = int(val)
+
+        error_cells = set()
+        for r in range(9):
+            for c in range(9):
+                num = board[r][c]
+                if num == 0:
+                    continue
+
+                # Check row, column, and box for duplicates
+                is_valid = (
+                    sum(1 for i in range(9) if board[r][i] == num) == 1 and
+                    sum(1 for i in range(9) if board[i][c] == num) == 1 and
+                    sum(1 for i in range(3) for j in range(3) if board[r - r % 3 + i][c - c % 3 + j] == num) == 1
+                )
+
+                if not is_valid:
+                    error_cells.add((r, c))
+
+        # Apply highlights
+        for (r, c), cell in self.cells.items():
+            if (r, c) in error_cells:
+                self._set_cell_bg(cell, self.colors["error"])
+
+        return error_cells
 
 if __name__ == "__main__":
     app = SudokuApp()
