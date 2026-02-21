@@ -1,156 +1,190 @@
-import tkinter as tk
-from tkinter import messagebox, PhotoImage
 import random
+from PyQt6.QtWidgets import QWidget, QGridLayout, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QMessageBox, QFrame, \
+    QSizePolicy
+from PyQt6.QtGui import QValidator, QIcon, QColor
+from PyQt6.QtCore import Qt
+
 from SudokuGrid import SudokuGrid
 from SudokuSolver import SudokuSolver
 
-class MainPage(tk.Frame):
-    def __init__(self, parent, controller, difficulty):
-        super().__init__(parent)
+
+class MainPage(QWidget):
+    def __init__(self, controller, difficulty):
+        super().__init__()
         self.controller = controller
         self.cells = {}
         self.undo_stack = []
         self.redo_stack = []
         self.colors = {
-            "default": "white",
-            "highlight": "#e0e0e0",  # A light gray
-            "readonly": "#f5f5f5",   # A slightly different gray for given numbers
-            "number_highlight": "#cce5ff", # A light blue for matching numbers
-            "focus_highlight": "#a6d7ff", # A brighter blue for the focused cell
-            "error": "#ffcccc" # A light red for invalid numbers
+            "default": "#ffffff",
+            "highlight": "#aed6f1",
+            "readonly": "#d6eaf8",
+            "number_highlight": "#5dade2",
+            "focus_highlight": "#2e86c1",
+            "error": "#e74c3c"
         }
+        self.cell_borders = {}
 
-        # Load the settings icon image before any methods that might use it.
-        # Store it as an instance attribute to prevent garbage collection.
-        try:
-            # Ensure 'settings.png' is in the same folder as your script.
-            self.settings_img = PhotoImage(file="settings.png").subsample(1, 1)
-        except tk.TclError:
-            self.settings_img = None # Fallback if image is not found
+        main_layout = QVBoxLayout(self)
+        main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._create_header()
-        validation_command = (self.register(self.validate_input), '%P')
-        self._create_grid(validation_command)
+        self._create_grid()
         self._create_buttons()
+
+        grid_row = QHBoxLayout()
+        grid_row.addStretch()
+        grid_row.addWidget(self.grid_frame)
+        grid_row.addStretch()
+
+        main_layout.addWidget(self.header_frame)
+        main_layout.addStretch()
+        main_layout.addLayout(grid_row)
+        main_layout.addStretch()
+        main_layout.addWidget(self.button_frame)
+
         self.generate_puzzle(difficulty)
 
-        # Bind a click on the frame to clear cell highlighting
-        self.bind("<Button-1>", lambda event: self._clear_highlighting())
-
     def _create_header(self):
-        header = tk.Frame(self)
-        header.pack(fill="x", padx=10, pady=5)
-        tk.Label(header, text="").pack(side="left", expand=True)
+        self.header_frame = QFrame()
+        header_layout = QHBoxLayout(self.header_frame)
+        header_layout.addStretch()
+        settings_button = QPushButton(QIcon("settings.png"), "")
+        settings_button.setIconSize(settings_button.sizeHint())
+        settings_button.clicked.connect(self.open_settings)
+        header_layout.addWidget(settings_button)
 
-        # Use the loaded image if it exists, otherwise fall back to the Unicode character.
-        if self.settings_img:
-            settings_button = tk.Button(header, image=self.settings_img, command=self.open_settings, borderwidth=0)
-        else:
-            settings_button = tk.Button(header, text="\u2699", font=("Arial", 16), command=self.open_settings, borderwidth=0)
-        settings_button.pack(side="right")
+    def open_settings(self):
+        QMessageBox.information(self, "Settings", "Settings functionality is not yet implemented.")
 
-    @staticmethod
-    def open_settings():
-        messagebox.showinfo("Settings", "Settings functionality is not yet implemented.")
+    def _create_grid(self):
+        self.grid_frame = QFrame()
+        self.grid_frame.setStyleSheet("background-color: #1a252f; padding: 8px;")
+        self.grid_frame.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        grid_layout = QGridLayout(self.grid_frame)
+        grid_layout.setSpacing(0)
+        grid_layout.setContentsMargins(0, 0, 0, 0)
 
-    def validate_input(self, p):
-        if p == "" or (len(p) == 1 and p.isdigit() and p != '0'):
-            return True
-        return False
-
-    def _create_grid(self, validation_command):
-        grid_frame = tk.Frame(self)
-        grid_frame.pack(pady=10)
         for i in range(9):
             for j in range(9):
-                cell = tk.Entry(grid_frame, width=3, font=('Arial', 18), justify='center',
-                              bg=self.colors["default"], bd=1, relief='solid',
-                              validate="key", validatecommand=validation_command)
+                cell = QLineEdit()
+                cell.setFixedSize(52, 52)
+                cell.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                font = cell.font()
+                font.setPointSize(18)
+                cell.setFont(font)
+                cell.setValidator(NumberValidator())
+                cell.textChanged.connect(self.record_state)
+                cell.installEventFilter(self)
 
-                # Bind events to the cell
-                cell.bind("<FocusIn>", lambda event, r=i, c=j: self._on_cell_focus(r, c))
-                # Chain two commands to the KeyRelease event
-                cell.bind("<KeyRelease>", lambda event, r=i, c=j: self._on_key_release(r, c))
+                border = self._border_style_for_cell(i, j)
+                self.cell_borders[(i, j)] = border
+                cell.setStyleSheet(f"background-color: {self.colors['default']}; {border}")
 
-                cell.grid(row=i, column=j, padx=(5,0) if j%3==0 else (1,0), pady=(5,0) if i%3==0 else (1,0), ipady=5)
+                grid_layout.addWidget(cell, i, j)
                 self.cells[(i, j)] = cell
 
-    def _get_cell_value(self, cell_widget):
-        """Safely gets the value from a cell, even if it's readonly."""
-        is_readonly = cell_widget.cget('state') == 'readonly'
-        if is_readonly: cell_widget.config(state='normal')
-        value = cell_widget.get()
-        if is_readonly: cell_widget.config(state='readonly')
-        return value
+        # 9 cells * 52px + 16px padding (8px each side)
+        self.grid_frame.setFixedSize(9 * 52 + 16, 9 * 52 + 16)
 
-    def _set_cell_bg(self, cell_widget, color):
-        """Sets the background of a cell, handling readonly state correctly."""
-        if cell_widget.cget('state') == 'readonly':
-            cell_widget.config(readonlybackground=color)
-        else:
-            cell_widget.config(bg=color)
+    def _border_style_for_cell(self, row, col):
+        thick = "3px solid #1a252f"
+        thin = "1px solid #7f8c8d"
+        top = thick if row % 3 == 0 else thin
+        left = thick if col % 3 == 0 else thin
+        bottom = thick if row == 8 else thin
+        right = thick if col == 8 else thin
+        return (f"border-top: {top}; border-left: {left}; "
+                f"border-bottom: {bottom}; border-right: {right};")
+
+    def eventFilter(self, source, event):
+        if isinstance(source, QLineEdit):
+            if event.type() == event.Type.FocusIn:
+                for r in range(9):
+                    for c in range(9):
+                        if self.cells[(r, c)] == source:
+                            self._on_cell_focus(r, c)
+                            break
+        return super().eventFilter(source, event)
 
     def _on_cell_focus(self, focused_row, focused_col):
-        """Highlights the row, column, and matching numbers for the focused cell."""
-        # First, validate the grid to establish a baseline of error highlights
         error_cells = self._validate_and_highlight_errors()
-
-        # Then, clear any non-error highlights before applying new ones
         self._clear_highlighting(exclude_errors=True)
 
         focused_cell = self.cells[(focused_row, focused_col)]
-        number_to_match = self._get_cell_value(focused_cell)
+        number_to_match = focused_cell.text()
 
-        # Always highlight the row and column first
         for c in range(9):
             self._set_cell_bg(self.cells[(focused_row, c)], self.colors["highlight"])
         for r in range(9):
             self._set_cell_bg(self.cells[(r, focused_col)], self.colors["highlight"])
 
-        # Only apply highlights if the cell is not empty
-        if number_to_match and number_to_match.isdigit():
-            # Then, apply the number highlight, which will override the row/col highlight where necessary
+        if number_to_match.isdigit():
             for (r, c), cell_widget in self.cells.items():
-                # Don't re-color error cells with a number highlight
                 if (r, c) in error_cells:
                     continue
-                if self._get_cell_value(cell_widget) == number_to_match:
+                if cell_widget.text() == number_to_match:
                     self._set_cell_bg(cell_widget, self.colors["number_highlight"])
 
-        # Finally, the focused cell gets the most prominent highlight, overriding any other color
-        self._set_cell_bg(self.cells[(focused_row, focused_col)], self.colors["focus_highlight"])
+        self._set_cell_bg(focused_cell, self.colors["focus_highlight"])
 
-    def _on_key_release(self, r, c):
-        """Handles actions after a key is released in a cell."""
-        self._on_cell_focus(r, c)
-        self.record_state()
+    def _set_cell_bg(self, cell_widget, color):
+        # Find this cell's position to get its border style
+        pos = next((k for k, v in self.cells.items() if v == cell_widget), None)
+        border = self.cell_borders.get(pos, "") if pos else ""
+        cell_widget.setStyleSheet(f"background-color: {color}; {border}")
 
     def _create_buttons(self):
-        button_frame = tk.Frame(self)
-        button_frame.pack(pady=10)
-        tk.Button(button_frame, text="New Game", command=self.controller.show_intro_page).pack(side="left", padx=5)
-        tk.Button(button_frame, text="Solve", command=self.solve_puzzle).pack(side="left", padx=5)
-        tk.Button(button_frame, text="Clear", command=self.clear_grid).pack(side="left", padx=5)
-        tk.Button(button_frame, text="Undo", command=self.undo).pack(side="left", padx=5)
-        tk.Button(button_frame, text="Redo", command=self.redo).pack(side="left", padx=5)
+        self.button_frame = QFrame()
+        self.button_frame.setStyleSheet("background-color: transparent;")
+        button_layout = QHBoxLayout(self.button_frame)
+        button_layout.setSpacing(8)
+
+        btn_style = """
+            QPushButton {
+                background-color: #2c3e50;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 14px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #3d5166; }
+            QPushButton:pressed { background-color: #1a252f; }
+        """
+
+        new_game_button = QPushButton("New Game")
+        new_game_button.clicked.connect(self.controller.show_intro_page)
+        solve_button = QPushButton("Solve")
+        solve_button.clicked.connect(self.solve_puzzle)
+        clear_button = QPushButton("Clear")
+        clear_button.clicked.connect(self.clear_grid)
+        undo_button = QPushButton("Undo")
+        undo_button.clicked.connect(self.undo)
+        redo_button = QPushButton("Redo")
+        redo_button.clicked.connect(self.redo)
+
+        for btn in [new_game_button, solve_button, clear_button, undo_button, redo_button]:
+            btn.setStyleSheet(btn_style)
+            button_layout.addWidget(btn)
 
     def get_holes_for_difficulty(self, difficulty):
-        """Returns the number of cells to remove for the given difficulty."""
         if difficulty == "Easy":
             return 35
         elif difficulty == "Medium":
             return 51
         elif difficulty == "Hard":
             return 56
-        return 40 # Default to Easy
+        return 40
 
     def generate_puzzle(self, difficulty):
         board = SudokuGrid()
         solver = SudokuSolver(board)
-        solver.solve() # Creates a full, valid grid
+        solver.solve()
 
         empty_cells_count = self.get_holes_for_difficulty(difficulty)
-        
+
         all_cells = [(r, c) for r in range(9) for c in range(9)]
         random.shuffle(all_cells)
 
@@ -158,13 +192,26 @@ class MainPage(tk.Frame):
             r, c = all_cells[i]
             board.grid[r][c] = 0
 
-        # Make the given numbers read-only
         for r in range(9):
             for c in range(9):
                 if board.grid[r][c] != 0:
-                    self.cells[(r, c)].config(state='readonly', readonlybackground=self.colors["readonly"])
+                    self.cells[(r, c)].setReadOnly(True)
+                    font = self.cells[(r, c)].font()
+                    font.setBold(True)
+                    self.cells[(r, c)].setFont(font)
+                    border = self.cell_borders.get((r, c), "")
+                    self.cells[(r, c)].setStyleSheet(
+                        f"background-color: {self.colors['readonly']}; color: #1a252f; {border}"
+                    )
                 else:
-                    self.cells[(r, c)].config(state='normal')
+                    self.cells[(r, c)].setReadOnly(False)
+                    font = self.cells[(r, c)].font()
+                    font.setBold(False)
+                    self.cells[(r, c)].setFont(font)
+                    border = self.cell_borders.get((r, c), "")
+                    self.cells[(r, c)].setStyleSheet(
+                        f"background-color: {self.colors['default']}; color: #2e86c1; {border}"
+                    )
 
         self.update_grid_ui(board.grid)
         self.record_state()
@@ -173,10 +220,10 @@ class MainPage(tk.Frame):
         board = SudokuGrid()
         try:
             for (r, c), cell in self.cells.items():
-                val = cell.get()
+                val = cell.text()
                 board.grid[r][c] = int(val) if val else 0
         except ValueError:
-            messagebox.showerror("Input Error", "Invalid number in grid.")
+            QMessageBox.critical(self, "Input Error", "Invalid number in grid.")
             return
 
         solver = SudokuSolver(board)
@@ -184,22 +231,19 @@ class MainPage(tk.Frame):
             self.update_grid_ui(board.grid)
             self.record_state()
         else:
-            messagebox.showerror("Error", "This puzzle cannot be solved.")
+            QMessageBox.critical(self, "Error", "This puzzle cannot be solved.")
 
     def update_grid_ui(self, grid):
         for i in range(9):
             for j in range(9):
                 cell = self.cells[(i, j)]
-                # Temporarily make cell normal to update it
-                is_readonly = cell.cget('state') == 'readonly'
-                if is_readonly: cell.config(state='normal')
-                cell.delete(0, tk.END)
                 if grid[i][j] != 0:
-                    cell.insert(0, str(grid[i][j]))
-                if is_readonly: cell.config(state='readonly')
+                    cell.setText(str(grid[i][j]))
+                else:
+                    cell.setText("")
 
     def record_state(self):
-        state = {pos: cell.get() for pos, cell in self.cells.items()}
+        state = {pos: cell.text() for pos, cell in self.cells.items()}
         if not self.undo_stack or self.undo_stack[-1] != state:
             self.undo_stack.append(state)
             self.redo_stack.clear()
@@ -218,34 +262,26 @@ class MainPage(tk.Frame):
     def _apply_state(self, state):
         for pos, value in state.items():
             cell = self.cells[pos]
-            is_readonly = cell.cget('state') == 'readonly'
-            if is_readonly: cell.config(state='normal')
-            cell.delete(0, tk.END)
-            if value:
-                cell.insert(0, value)
-            if is_readonly: cell.config(state='readonly')
+            cell.setText(value)
 
     def _clear_highlighting(self, exclude_errors=False):
-        """Resets the background color of all cells to their default (normal or readonly) state."""
         for pos, cell_widget in self.cells.items():
-            if exclude_errors and cell_widget.cget('bg') == self.colors["error"]:
+            if exclude_errors and cell_widget.styleSheet().find(self.colors["error"]) != -1:
                 continue
-            default_color = self.colors["readonly"] if cell_widget.cget('state') == 'readonly' else self.colors["default"]
+            default_color = self.colors["readonly"] if cell_widget.isReadOnly() else self.colors["default"]
             self._set_cell_bg(cell_widget, default_color)
 
     def clear_grid(self):
         for pos, cell in self.cells.items():
-            # Only clear user-editable cells, not the read-only puzzle numbers
-            if cell.cget('state') != 'readonly':
-                cell.delete(0, tk.END)
+            if not cell.isReadOnly():
+                cell.clear()
         self._validate_and_highlight_errors()
         self.record_state()
 
     def _validate_and_highlight_errors(self):
-        """Checks the entire grid for Sudoku rule violations and highlights them in red."""
         board = [[0] * 9 for _ in range(9)]
         for (r, c), cell in self.cells.items():
-            val = self._get_cell_value(cell)
+            val = cell.text()
             if val.isdigit():
                 board[r][c] = int(val)
 
@@ -256,19 +292,24 @@ class MainPage(tk.Frame):
                 if num == 0:
                     continue
 
-                # Check row, column, and box for duplicates
                 is_valid = (
-                    sum(1 for i in range(9) if board[r][i] == num) == 1 and
-                    sum(1 for i in range(9) if board[i][c] == num) == 1 and
-                    sum(1 for i in range(3) for j in range(3) if board[r - r % 3 + i][c - c % 3 + j] == num) == 1
+                        sum(1 for i in range(9) if board[r][i] == num) == 1 and
+                        sum(1 for i in range(9) if board[i][c] == num) == 1 and
+                        sum(1 for i in range(3) for j in range(3) if board[r - r % 3 + i][c - c % 3 + j] == num) == 1
                 )
 
                 if not is_valid:
                     error_cells.add((r, c))
 
-        # Apply highlights
         for (r, c), cell in self.cells.items():
             if (r, c) in error_cells:
                 self._set_cell_bg(cell, self.colors["error"])
 
         return error_cells
+
+
+class NumberValidator(QValidator):
+    def validate(self, input_str, pos):
+        if input_str == "" or (input_str.isdigit() and '1' <= input_str <= '9' and len(input_str) == 1):
+            return (QValidator.State.Acceptable, input_str, pos)
+        return (QValidator.State.Invalid, input_str, pos)

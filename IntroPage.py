@@ -1,17 +1,49 @@
-import tkinter as tk
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton
+from PyQt6.QtCore import Qt
 
-class IntroPage(tk.Frame):
-    def __init__(self, parent, controller):
-        super().__init__(parent)
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_columnconfigure(0, weight=1)
+class IntroPage(QWidget):
+    def __init__(self, controller):
+        super().__init__()
+        self.controller = controller
 
-        main_frame = tk.Frame(self)
-        main_frame.grid(row=0, column=0)
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        label = tk.Label(main_frame, text="Select Difficulty", font=("Arial", 24))
-        label.pack(pady=20, padx=10)
+        label = QLabel("Select Difficulty")
+        font = label.font()
+        font.setPointSize(28)
+        font.setBold(True)
+        label.setFont(font)
+        label.setStyleSheet("color: #2c3e50; margin-bottom: 20px;")
+        layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        tk.Button(main_frame, text="Easy", font=("Arial", 18), command=lambda: controller.start_game("Easy")).pack(pady=10)
-        tk.Button(main_frame, text="Medium", font=("Arial", 18), command=lambda: controller.start_game("Medium")).pack(pady=10)
-        tk.Button(main_frame, text="Hard", font=("Arial", 18), command=lambda: controller.start_game("Hard")).pack(pady=10)
+        btn_style = """
+            QPushButton {
+                background-color: #2c3e50;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #3d5166; }
+            QPushButton:pressed { background-color: #1a252f; }
+        """
+
+        easy_button = QPushButton("Easy")
+        easy_button.setFixedSize(160, 55)
+        easy_button.setStyleSheet(btn_style)
+        easy_button.clicked.connect(lambda: self.controller.start_game("Easy"))
+        layout.addWidget(easy_button, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        medium_button = QPushButton("Medium")
+        medium_button.setFixedSize(160, 55)
+        medium_button.setStyleSheet(btn_style)
+        medium_button.clicked.connect(lambda: self.controller.start_game("Medium"))
+        layout.addWidget(medium_button, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        hard_button = QPushButton("Hard")
+        hard_button.setFixedSize(160, 55)
+        hard_button.setStyleSheet(btn_style)
+        hard_button.clicked.connect(lambda: self.controller.start_game("Hard"))
+        layout.addWidget(hard_button, alignment=Qt.AlignmentFlag.AlignCenter)
