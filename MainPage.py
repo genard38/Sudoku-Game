@@ -21,7 +21,8 @@ class MainPage(QWidget):
             "readonly": "#d6eaf8",
             "number_highlight": "#5dade2",
             "focus_highlight": "#2e86c1",
-            "error": "#e74c3c"
+            "error": "#e74c3c",
+            "user_input": "#1a252f"
         }
         self.cell_borders = {}
         self.given_cells = set()
@@ -134,10 +135,7 @@ class MainPage(QWidget):
         pos = next((k for k, v in self.cells.items() if v == cell_widget), None)
         border = self.cell_borders.get(pos, "") if pos else ""
         # Set text color for readonly (given/solution) cells to black, others to blue
-        if cell_widget.isReadOnly():
-            cell_widget.setStyleSheet(f"background-color: {color}; color: #1a252f; {border}")
-        else:
-            cell_widget.setStyleSheet(f"background-color: {color}; color: #2e86c1; {border}")
+        cell_widget.setStyleSheet(f"background-color: {color}; color: user_input; {border}")
 
     def _create_buttons(self):
         self.button_frame = QFrame()
@@ -208,7 +206,7 @@ class MainPage(QWidget):
                     self.cells[(r, c)].setFont(font)
                     border = self.cell_borders.get((r, c), "")
                     self.cells[(r, c)].setStyleSheet(
-                        f"background-color: {self.colors['readonly']}; color: #1a252f; {border}"
+                        f"background-color: {self.colors['readonly']}; color: user_input; {border}"
                     )
                 else:
                     self.cells[(r, c)].setReadOnly(False)
@@ -217,7 +215,7 @@ class MainPage(QWidget):
                     self.cells[(r, c)].setFont(font)
                     border = self.cell_borders.get((r, c), "")
                     self.cells[(r, c)].setStyleSheet(
-                        f"background-color: {self.colors['default']}; color: #2e86c1; {border}"
+                        f"background-color: {self.colors['default']}; color: #1a252f; {border}"
                     )
 
         self.update_grid_ui(board.grid)
