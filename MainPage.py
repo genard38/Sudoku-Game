@@ -24,6 +24,7 @@ class MainPage(QWidget):
             "error": "#e74c3c"
         }
         self.cell_borders = {}
+        self.given_cells = set()
 
         main_layout = QVBoxLayout(self)
         main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -132,7 +133,11 @@ class MainPage(QWidget):
         # Find this cell's position to get its border style
         pos = next((k for k, v in self.cells.items() if v == cell_widget), None)
         border = self.cell_borders.get(pos, "") if pos else ""
-        cell_widget.setStyleSheet(f"background-color: {color}; {border}")
+        # Set text color for readonly (given/solution) cells to black, others to blue
+        if cell_widget.isReadOnly():
+            cell_widget.setStyleSheet(f"background-color: {color}; color: #1a252f; {border}")
+        else:
+            cell_widget.setStyleSheet(f"background-color: {color}; color: #2e86c1; {border}")
 
     def _create_buttons(self):
         self.button_frame = QFrame()
@@ -192,9 +197,11 @@ class MainPage(QWidget):
             r, c = all_cells[i]
             board.grid[r][c] = 0
 
+        self.given_cells.clear()
         for r in range(9):
             for c in range(9):
                 if board.grid[r][c] != 0:
+                    self.given_cells.add((r, c))
                     self.cells[(r, c)].setReadOnly(True)
                     font = self.cells[(r, c)].font()
                     font.setBold(True)
@@ -242,6 +249,7 @@ class MainPage(QWidget):
                 else:
                     cell.setText("")
 
+
     def record_state(self):
         state = {pos: cell.text() for pos, cell in self.cells.items()}
         if not self.undo_stack or self.undo_stack[-1] != state:
@@ -261,8 +269,12 @@ class MainPage(QWidget):
 
     def _apply_state(self, state):
         for pos, value in state.items():
-            cell = self.cells[pos]
-            cell.setText(value)
+            if pos in self.given_cells:
+                continue
+            self.cells[pos].setText(value)
+
+            # cell = self.cells[pos]
+            # cell.setText(value)
 
     def _clear_highlighting(self, exclude_errors=False):
         for pos, cell_widget in self.cells.items():
@@ -273,7 +285,7 @@ class MainPage(QWidget):
 
     def clear_grid(self):
         for pos, cell in self.cells.items():
-            if not cell.isReadOnly():
+            if pos not in self.given_cells:
                 cell.clear()
         self._validate_and_highlight_errors()
         self.record_state()
